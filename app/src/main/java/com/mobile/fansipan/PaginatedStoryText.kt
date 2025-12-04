@@ -9,16 +9,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.room.util.appendPlaceholders
 import kotlinx.coroutines.launch
 
 
@@ -26,6 +19,8 @@ import kotlinx.coroutines.launch
 
 
 private fun calculatePageBreaks(
+    storyText: String,
+    start: Int,
     textLayoutResult: TextLayoutResult
 ): Int {
     // Find the last visible line on the first layout pass
@@ -34,8 +29,28 @@ private fun calculatePageBreaks(
     // Find the end character index of that last visible line
     val lastVisibleCharIndex =
         textLayoutResult.getLineEnd(lastVisibleLineIndex, visibleEnd = true)
-    return lastVisibleCharIndex
 
+    //
+    //val validStart = textLayoutResult.getLineStart(lastVisibleLineIndex)
+    var validEnd = start + lastVisibleCharIndex
+    var removedChars = ""
+    if (validEnd < storyText.length) {
+        var found = false
+        while (!found) {
+            if (!storyText.get(validEnd).isWhitespace()) {
+                removedChars = storyText[validEnd].toString() + removedChars
+                validEnd--
+            } else {
+                found = true
+            }
+        }
+        Log.d("FANSIPAN", "START: " + start + " | " + "REMOVED: " + removedChars)
+        return lastVisibleCharIndex - removedChars.length + 1
+    } else {
+        Log.d("FANSIPAN", "START: " + start + " | " + "REMAINDER: " + (storyText.length - start).toString())
+        return storyText.length - start
+    }
+    //Log.d("FANSIPAN", "ORIGINAL: "  + storyText.substring(validStart, validEnd) )
 }
 
 
@@ -44,6 +59,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
 
     //var maxChar by remember { mutableIntStateOf }
     val pages = remember { mutableStateListOf(0) }
+    val ends = remember { mutableStateListOf(0) }
 
     // message
     var message by remember { mutableStateOf("") }
@@ -71,7 +87,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
 
 
     val updateMessage = fun(text: String) {
-        // message = text
+        message = text
     }
     val resetPagerState = fun() {
         coroutineScope.launch {
@@ -185,12 +201,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Text(text = message)
-        //if (pages.isEmpty()) {
-        //    pages.add(0)
-        //    pageCount = pages.size
-        //} else {
-        //Log.d("FANSIPAN", "SHY")
+        Text(text = message)
+
         TimerCompose(
             updateMessage = updateMessage,
             userScrollEnabled = changeUserScrollEnabled,
@@ -217,16 +229,19 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
                     .padding(16.dp)
             ) {
 
-                //var start=0
-                //f (pages.isNotEmpty()){
-                //val start = pages[pageCount]
-                //}
-                Log.d("FANSIPAN", pages.toString())
                 val start = pages[pageIndex]
-                Log.d("FANSIPAN", start.toString())
+                var original = storyText.substring(start)
+                if (ends[pageIndex] != 0){
+                    original = storyText.substring(start, ends[pageIndex])
+                }
+                //Log.d("FANSIPAN", start.toString())
+                //var end by remember {mutableIntStateOf(storyText.length)}
+
                 Text(
-                    text = storyText.substring(pages[pageIndex]),
+                    //text = storyText.substring(pages[pageIndex]),
+                    text = original,
                     overflow = TextOverflow.Ellipsis,
+                    //maxLines = 24,
                     modifier = Modifier.align(Alignment.TopStart),
                     onTextLayout = { textLayoutResult ->
                         // This callback runs when the text is laid out.
@@ -239,13 +254,26 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
                         //Pages that are already in the composition and just being scrolled
                         //back into view are not recomposed from scratch,
                         //so their onTextLayout callback (which fires during the layout phase) is not re-invoked automatically.
-                        val endPageChar = calculatePageBreaks(textLayoutResult)
-                        if (!pages.contains(start + endPageChar)) {
-                            if ((start + endPageChar) < storyText.length) {
-                                pages.add(start + endPageChar)
-                                pageCount = pages.size
+
+                        val endPageChar = calculatePageBreaks(storyText, start, textLayoutResult)
+                        //if (ends[pageIndex] == 0) {
+                        //    ends[pageIndex] = (start + endPageChar)
+                            // end = calculatePageBreaks(storyText, textLayoutResult)
+                            if (!pages.contains(start + endPageChar)) {
+                                if ((start + endPageChar) < storyText.length) {
+                                    if (ends[pageIndex] == 0) {
+                                        ends[pageIndex] = (start + endPageChar)
+                                    }
+                                    pages.add(start + endPageChar)
+                                    ends.add(0)
+                                    pageCount = pages.size
+                                    Log.d("FANSIPAN", "START: " + pages.toString())
+                                    Log.d("FANSIPAN", "END: " + ends.toString())
+                                }
                             }
-                        }
+                        //} else {
+                            //Log.d("FANSIPAN", "END: " + ends.toString())
+                        //}
                     }
                 )
             }
