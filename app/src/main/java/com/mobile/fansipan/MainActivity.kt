@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     Column(modifier = Modifier.padding(innerPadding)) {
                         PaginatedStoryText(
                             storyText = text1,
-                            initialTimeSeconds = 100
+                            initialTimeSeconds = 10
                         )
                     }
                 }

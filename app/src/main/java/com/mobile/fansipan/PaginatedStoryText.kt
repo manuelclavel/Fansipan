@@ -4,7 +4,9 @@ import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -13,9 +15,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-
-
-
 
 
 private fun calculatePageBreaks(
@@ -47,12 +46,34 @@ private fun calculatePageBreaks(
         Log.d("FANSIPAN", "START: " + start + " | " + "REMOVED: " + removedChars)
         return lastVisibleCharIndex - removedChars.length + 1
     } else {
-        Log.d("FANSIPAN", "START: " + start + " | " + "REMAINDER: " + (storyText.length - start).toString())
+        Log.d(
+            "FANSIPAN",
+            "START: " + start + " | " + "REMAINDER: " + (storyText.length - start).toString()
+        )
         return storyText.length - start
     }
     //Log.d("FANSIPAN", "ORIGINAL: "  + storyText.substring(validStart, validEnd) )
 }
 
+@Composable
+fun OverlayMessageDialog(
+    showDialog: MutableState<Boolean>,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    if (showDialog.value) {
+        AlertDialog(
+            onDismissRequest = { onDismiss() },
+            title = { Text("Analytics") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { onDismiss() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+}
 
 @Composable
 fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
@@ -83,6 +104,10 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
     val changeUserScrollEnabled = fun(value: Boolean) {
         userScrollEnabled = value
     }
+    // overlay
+    val showOverlay = remember { mutableStateOf(false) }
+    val overlayMessage = remember { mutableStateOf("") }
+    //
     val coroutineScope = rememberCoroutineScope()
 
 
@@ -114,6 +139,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
         metrics.clear()
 
     }
+
+
     val whenFinished = fun() {
         if (metrics.isEmpty()) {
             timeInPage = initialTimeSeconds
@@ -133,76 +160,80 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
         )
 
         val pagesChars = mutableListOf<Int>()
-        // if (pages.isNotEmpty()) {
-        //     for (index in 0..<pages.size) {
-        //if (index > 0) {
-        //         if (index < pages.size - 1) {
-        //pagesChars.add(pages[index + 1] - pageStarts[index])
+        if (pages.isNotEmpty()) {
+            for (index in 0..<pages.size) {
+                if (index < (pages.size - 1)){
+                    pagesChars.add(ends[index] - pages[index])
+                } else {
+                    pagesChars.add(storyText.length - pages[index])
+                }
+            }
+        }
+        var pages =
+            pagesChars.foldIndexed("") { index, accumulator, pageChar ->
+                accumulator + ("[p" + (index + 1).toString()  + " : "
+                        + pageChar.toString() + "ch" + "], ")
+            }
+        if (pages.isNotEmpty()) {
+            pages = pages.dropLast(2)
+        }
+        var result =
+            metrics.fold("") { accumulator, timeInPage ->
+                accumulator + ("[p" + (timeInPage.page + 1).toString() + " : "
+                        + timeInPage.time.toString() + "s], ")
+            }
 
-        //         } else {
-        //pagesChars.add(totalChars - pageStarts[index])
-        //        }
-        //}
-        //    }
-        //}
-        // var pages =
-        //     pagesChars.fold("") { accumulator, pageStart ->
-        //         "$accumulator$pageStart,"
-        //     }
-        //if (pages.isNotEmpty()) {
-        //    pages = pages.dropLast(1)
-        // }
-        // var result =
-        //     metrics.fold("") { accumulator, timeInPage ->
-        //         accumulator + ("[p" + (timeInPage.page + 1).toString() + " : "
-        //                + timeInPage.time.toString() + "s], ")
-        //    }
-
-        // if (result.isNotEmpty()) {
-        //     result = result.dropLast(2)
-        // }
-
+        if (result.isNotEmpty()) {
+            result = result.dropLast(2)
+        }
+        overlayMessage.value =
+            "Chars per page:" + "\n" + pages + "\n" + "Reading sequence:" + "\n" + result
+        showOverlay.value = true
 
     }
 
-    // LaunchedEffect(pagerState) {
-    // Collect from the a snapshotFlow reading the currentPage
-    //     snapshotFlow { pagerState.currentPage }.collect { page ->
-    // Do something with each page change, for example:
-    //         if (initialTimeSeconds != timeLeft) {
-    //             var timeInPage: Int
-    //             if (metrics.isEmpty()) {
-    //                 timeInPage = (initialTimeSeconds - timeLeft)
-    //            } else {
-    //                val currentReadingTime =
-    //                    metrics.fold(0) { accumulator, timeInPage -> accumulator + timeInPage.time }
+    LaunchedEffect(pagerState) {
+        // Collect from the a snapshotFlow reading the currentPage
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            // Do something with each page change, for example:
+            if (initialTimeSeconds != timeLeft) {
+                var timeInPage: Int
+                if (metrics.isEmpty()) {
+                    timeInPage = (initialTimeSeconds - timeLeft)
+                } else {
+                    val currentReadingTime =
+                        metrics.fold(0) { accumulator, timeInPage -> accumulator + timeInPage.time }
 
-    //                 timeInPage =
-    //                     (initialTimeSeconds
-    //                             - (currentReadingTime
-    //                             + timeLeft))
-    //             }
-    //             metrics.add(
-    //                 TimeInPage(
-    //                     page = pageReading,
-    //                     time = timeInPage
-    //                 )
-    //            )
-
-    //       pageReading = page
-    //Log.d("FANSIPAN", metrics.toString())
-    // }
-
-    //  }
-    //}
+                    timeInPage =
+                        (initialTimeSeconds
+                                - (currentReadingTime
+                                + timeLeft))
+                }
+                metrics.add(
+                    TimeInPage(
+                        page = pageReading,
+                        time = timeInPage
+                    )
+                )
+                pageReading = page
+                //Log.d("FANSIPAN", metrics.toString())
+            }
+        }
+    }
 
     Column(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier.padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = message)
 
+        OverlayMessageDialog(
+            showDialog = showOverlay,
+            message = overlayMessage.value,
+            onDismiss = { showOverlay.value = false }
+        )
+
+        Text(text = message)
         TimerCompose(
             updateMessage = updateMessage,
             userScrollEnabled = changeUserScrollEnabled,
@@ -231,17 +262,13 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
 
                 val start = pages[pageIndex]
                 var original = storyText.substring(start)
-                if (ends[pageIndex] != 0){
+                if (ends[pageIndex] != 0) {
                     original = storyText.substring(start, ends[pageIndex])
                 }
-                //Log.d("FANSIPAN", start.toString())
-                //var end by remember {mutableIntStateOf(storyText.length)}
 
                 Text(
-                    //text = storyText.substring(pages[pageIndex]),
                     text = original,
                     overflow = TextOverflow.Ellipsis,
-                    //maxLines = 24,
                     modifier = Modifier.align(Alignment.TopStart),
                     onTextLayout = { textLayoutResult ->
                         // This callback runs when the text is laid out.
@@ -256,24 +283,19 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
                         //so their onTextLayout callback (which fires during the layout phase) is not re-invoked automatically.
 
                         val endPageChar = calculatePageBreaks(storyText, start, textLayoutResult)
-                        //if (ends[pageIndex] == 0) {
-                        //    ends[pageIndex] = (start + endPageChar)
-                            // end = calculatePageBreaks(storyText, textLayoutResult)
-                            if (!pages.contains(start + endPageChar)) {
-                                if ((start + endPageChar) < storyText.length) {
-                                    if (ends[pageIndex] == 0) {
-                                        ends[pageIndex] = (start + endPageChar)
-                                    }
-                                    pages.add(start + endPageChar)
-                                    ends.add(0)
-                                    pageCount = pages.size
-                                    Log.d("FANSIPAN", "START: " + pages.toString())
-                                    Log.d("FANSIPAN", "END: " + ends.toString())
+                        if (!pages.contains(start + endPageChar)) {
+                            if ((start + endPageChar) < storyText.length) {
+                                if (ends[pageIndex] == 0) {
+                                    ends[pageIndex] = (start + endPageChar)
                                 }
+                                pages.add(start + endPageChar)
+                                ends.add(0)
+                                pageCount = pages.size
+                                Log.d("FANSIPAN", "START: " + pages.toString())
+                                Log.d("FANSIPAN", "END: " + ends.toString())
                             }
-                        //} else {
-                            //Log.d("FANSIPAN", "END: " + ends.toString())
-                        //}
+                        }
+
                     }
                 )
             }
