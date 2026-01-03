@@ -44,8 +44,8 @@ class MainActivity : ComponentActivity() {
                 { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
                         PaginatedStoryText(
-                            storyText = text1,
-                            initialTimeSeconds = 10
+                            storyText = text1,  // document
+                            initialTimeSeconds = 10 // allottedTime
                         )
                     }
                 }

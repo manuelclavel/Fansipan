@@ -1,9 +1,12 @@
 package com.mobile.fansipan
 
 import android.util.Log
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -11,12 +14,37 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import java.text.BreakIterator
+import java.util.Locale
 
+// Helper function to find word boundaries using BreakIterator
+fun getWordRange(text: String, offset: Int): IntRange {
+    val breakIterator = BreakIterator.getWordInstance(Locale.getDefault())
+    breakIterator.setText(text)
+    // Find the word boundary that contains the tapped offset
+    var start = breakIterator.preceding(offset)
+    if (start == BreakIterator.DONE) start = 0
+    var end = breakIterator.following(offset)
+    if (end == BreakIterator.DONE) end = text.length
 
+    // Adjust boundaries to capture the full word and ignore surrounding whitespace
+    while (start < end && Character.isWhitespace(text[start])) {
+        start++
+    }
+    while (end > start && Character.isWhitespace(text[end - 1])) {
+        end--
+    }
+
+    return IntRange(start, end)
+}
 private fun calculatePageBreaks(
     storyText: String,
     start: Int,
@@ -76,17 +104,72 @@ fun OverlayMessageDialog(
 }
 
 @Composable
-fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
+fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
+                       ) {
 
+    val scope = rememberCoroutineScope()
+    //
+    var startTime by remember { mutableStateOf<Long>(0)}
+    val updateStartTime = fun (l: Long){
+        startTime = l
+    }
+    val onWordTapped = fun (word: String){
+        // Handle the tapped word here (e.g., show a Toast, look up definition)
+        Log.d("FANSIPAN", "Tapped on word: $word")
+        // You can add your custom selection logic here
+    }
+    //
+    var highlightedWord by remember {mutableStateOf<Rect?>(null)}
+    val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
+    val pressIndicator = Modifier.pointerInput(onWordTapped) {
+        detectTapGestures(
+            onTap = { offset ->
+                textLayoutResultState.value?.let { textLayoutResult ->
+                    val position = textLayoutResult.getOffsetForPosition(offset)
+                    val wordRange = getWordRange(storyText, position)
+                    val tappedWord = storyText.substring(wordRange.first, wordRange.last)
+                    Log.d("FANSIPAN", "TAP DETECTED: " + wordRange.first
+                            + "--" + wordRange.last)
+                    if (tappedWord.isNotBlank()) {
+
+                        val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
+                        val endBounds = textLayoutResult.getBoundingBox(wordRange.last)
+                        highlightedWord = Rect(startBounds.left, startBounds.top, endBounds.right, endBounds.bottom)
+                        //drawRect(color = Color.Yellow.copy(alpha = 0.3f), topLeft = rect.topLeft, size = rect.size)
+                        // Draw a rectangle over the calculated bounds
+                        //drawRect(
+                        //    color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
+                        //    topLeft = rect.topLeft,
+                        //    size = rect.size
+                        //)
+                        Log.d("FANSIPAN", highlightedWord.toString())
+                        onWordTapped(tappedWord)
+                    }
+                }
+            }
+        )
+    }
     //var maxChar by remember { mutableIntStateOf }
     val pages = remember { mutableStateListOf(0) }
     val ends = remember { mutableStateListOf(0) }
 
-    // message
-    var message by remember { mutableStateOf("") }
     // metrics
     val metrics = remember { mutableListOf<TimeInPage>() }
 
+   // val readingRecord : ReadingRecord by remember { mutableStateOf(
+   //     ReadingRecord(
+   //         reader = "",
+   //         timestamp = -1,
+   //         document = "",
+   //         allottedTime = -1,
+   //         pages = -1,
+   //         timeInPages = 
+   //     )
+   // )}
+   
+    // message
+    var message by remember { mutableStateOf("") }
+    
     // timer
     var isRunning by remember { mutableStateOf(false) }
     var timeLeft by remember { mutableIntStateOf(initialTimeSeconds) }
@@ -94,7 +177,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
     var timeInPage by remember { mutableIntStateOf(0) }
 
     // Disable swipe
-    var userScrollEnabled by remember { mutableStateOf(false) }
+    var userSwipeEnabled by remember { mutableStateOf(false) }
     // State to hold the number of pages needed, defaulting to 1
     var pageCount by remember { mutableIntStateOf(1) }
     // State to hold the start indices of each page
@@ -102,7 +185,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
     val pagerState = rememberPagerState(pageCount = { pageCount })
 
     val changeUserScrollEnabled = fun(value: Boolean) {
-        userScrollEnabled = value
+        userSwipeEnabled = value
     }
     // overlay
     val showOverlay = remember { mutableStateOf(false) }
@@ -125,6 +208,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
     }
     val updateRunning = fun(b: Boolean) {
         isRunning = b
+
     }
 
     val readTimeLeft = fun(): Int {
@@ -169,13 +253,13 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
                 }
             }
         }
-        var pages =
+        var pagesString =
             pagesChars.foldIndexed("") { index, accumulator, pageChar ->
                 accumulator + ("[p" + (index + 1).toString()  + " : "
                         + pageChar.toString() + "ch" + "], ")
             }
-        if (pages.isNotEmpty()) {
-            pages = pages.dropLast(2)
+        if (pagesString.isNotEmpty()) {
+            pagesString = pagesString.dropLast(2)
         }
         var result =
             metrics.fold("") { accumulator, timeInPage ->
@@ -188,6 +272,28 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
         }
         overlayMessage.value =
             "Chars per page:" + "\n" + pages + "\n" + "Reading sequence:" + "\n" + result
+
+        val readingRecord =
+            ReadingRecord(
+                reader = "user1",
+                startTime = startTime,
+                document = "test1",
+                allottedTime = initialTimeSeconds,
+                pages = pages,
+                timeInPages = metrics
+            )
+
+        scope.launch {
+                try {
+                    val response = service1.invokeLambda(readingRecord)
+                    // Handle the response
+                } catch (e: Exception) {
+                    // Handle errors
+                }
+            }
+
+
+        
         showOverlay.value = true
 
     }
@@ -233,7 +339,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
             onDismiss = { showOverlay.value = false }
         )
 
-        Text(text = message)
+        //Text(text = message)
+        /*
         TimerCompose(
             updateMessage = updateMessage,
             userScrollEnabled = changeUserScrollEnabled,
@@ -243,14 +350,15 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
             readTimeLeft = readTimeLeft,
             updateRunning = updateRunning,
             readRunning = readRunning,
-            whenFinished = whenFinished
+            whenFinished = whenFinished,
+            updateStartTime = updateStartTime
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-
+        */
         HorizontalPager(
             state = pagerState,
-            userScrollEnabled = userScrollEnabled, // This disables user swiping
+            userScrollEnabled = userSwipeEnabled, // This disables user swiping
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
             // A Box to constrain the Text size for measurement
@@ -269,8 +377,31 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int) {
                 Text(
                     text = original,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.TopStart),
-                    onTextLayout = { textLayoutResult ->
+                    modifier =
+                        Modifier.align(Alignment.TopStart)
+                        .then(pressIndicator)
+                            .drawWithContent {
+                                drawContent()
+                                //
+                                // Draw a rectangle over the calculated bounds
+                                highlightedWord?.let {
+                                    drawRect(
+                                        color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
+                                        topLeft = it.topLeft,
+                                        size = it.size
+                                    )
+                                }
+                            },
+                           //.combinedClickable(
+                           //     onClick = { Log.d("FANSIPAN", "Click") },
+                           //     onLongClick = { Log.d("FANSIPAN", "Long click") }
+                           // ),
+
+                    onTextLayout = {
+                        textLayoutResult ->
+                        // detect tapping
+
+                        textLayoutResultState.value = textLayoutResult
                         // This callback runs when the text is laid out.
                         //The onTextLayout callback in HorizontalPager
                         //is only triggered when a page is initially

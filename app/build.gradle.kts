@@ -90,6 +90,7 @@ dependencies {
 
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.compose.ui.graphics)
     //implementation(libs.androidx.compose.ui.test)
     testImplementation(libs.junit)
 // For local unit tests
@@ -123,4 +124,7 @@ dependencies {
     // serialization
     implementation(libs.kotlinx.serialization.json) // Or the latest version
     implementation(libs.androidx.navigation.compose.v280alpha08) // Or a later version
+    // retrofit
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 }
