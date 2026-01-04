@@ -48,6 +48,21 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                        ) {
 
     val scope = rememberCoroutineScope()
+    //var maxChar by remember { mutableIntStateOf }
+    val pages = remember { mutableStateListOf(0) }
+    val ends = remember { mutableStateListOf(0) }
+
+    // Disable swipe
+    var userSwipeEnabled by remember { mutableStateOf(false) }
+    // State to hold the number of pages needed, defaulting to 1
+    var pageCount by remember { mutableIntStateOf(1) }
+    // State to hold the start indices of each page
+
+
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+
+
+
     // overlay
     val showOverlay = remember { mutableStateOf(false) }
     val overlayMessage = remember { mutableStateOf("") }
@@ -64,8 +79,10 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     }
     val onWordTapped = fun (word: String, storyText: String, end: Int){
         val numberOfWords = getNumberOfWords(storyText, storyText.length)
-        val numberOfWordsRead = getNumberOfWords(storyText, end)
+        val currentPageStarts = if (pagerState.currentPage > 0) ends[pagerState.currentPage] else 0
 
+        val numberOfWordsRead = getNumberOfWords(storyText, currentPageStarts)
+        //Log.d("FANSIPAN", "Chars read already: $numberOfWordsRead")
         overlayMessage.value =
             "Tapped on word: $word\nTotal number of words: $numberOfWords\nNumber of words read: $numberOfWordsRead"
         showOverlay.value = true
@@ -79,17 +96,24 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
             onTap = { offset ->
                 if (timeLeft <= 1){
                 textLayoutResultState.value?.let { textLayoutResult ->
-                    val position = textLayoutResult.getOffsetForPosition(offset)
+                    val currentPageStarts = if (pagerState.currentPage > 0) pages[pagerState.currentPage] else 0
+                    val position = currentPageStarts + textLayoutResult.getOffsetForPosition(offset)
+
                     val wordRange = getWordRange(storyText, position)
-                    val tappedWord = storyText.substring(wordRange.first, wordRange.last)
+                    Log.d("FANSIPAN", "WORD RANGE: " + wordRange.toString())
+                    val tappedWord = storyText.substring(wordRange.first,
+                        wordRange.last)
                     Log.d(
                         "FANSIPAN", "TAP DETECTED: " + wordRange.first
                                 + "--" + wordRange.last
                     )
+                    Log.d(
+                        "FANSIPAN", "PAGESTARTS: " + currentPageStarts
+                    )
                     if (tappedWord.isNotBlank()) {
 
-                        val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
-                        val endBounds = textLayoutResult.getBoundingBox(wordRange.last)
+                        val startBounds = textLayoutResult.getBoundingBox(wordRange.first - currentPageStarts)
+                        val endBounds = textLayoutResult.getBoundingBox(wordRange.last - currentPageStarts - 1)
                         highlightedWord = Rect(
                             startBounds.left,
                             startBounds.top,
@@ -98,7 +122,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                         )
 
                         Log.d("FANSIPAN", highlightedWord.toString())
-                        onWordTapped(tappedWord, storyText, wordRange.first)
+                        onWordTapped(tappedWord, storyText, currentPageStarts + wordRange.first + 1)
                     }
                 }
                 }
@@ -106,9 +130,6 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
         )
     }
 
-    //var maxChar by remember { mutableIntStateOf }
-    val pages = remember { mutableStateListOf(0) }
-    val ends = remember { mutableStateListOf(0) }
 
     // metrics
     val metrics = remember { mutableListOf<TimeInPage>() }
@@ -127,14 +148,6 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     // message
     var message by remember { mutableStateOf("") }
     
-
-    // Disable swipe
-    var userSwipeEnabled by remember { mutableStateOf(false) }
-    // State to hold the number of pages needed, defaulting to 1
-    var pageCount by remember { mutableIntStateOf(1) }
-    // State to hold the start indices of each page
-
-    val pagerState = rememberPagerState(pageCount = { pageCount })
 
     val changeUserScrollEnabled = fun(value: Boolean) {
         userSwipeEnabled = value
