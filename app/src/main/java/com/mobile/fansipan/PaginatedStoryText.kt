@@ -1,12 +1,10 @@
 package com.mobile.fansipan
 
 import android.util.Log
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,66 +20,8 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import java.text.BreakIterator
-import java.util.Locale
 
 // Helper function to find word boundaries using BreakIterator
-fun getWordRange(text: String, offset: Int): IntRange {
-    val breakIterator = BreakIterator.getWordInstance(Locale.getDefault())
-    breakIterator.setText(text)
-    // Find the word boundary that contains the tapped offset
-    var start = breakIterator.preceding(offset)
-    if (start == BreakIterator.DONE) start = 0
-    var end = breakIterator.following(offset)
-    if (end == BreakIterator.DONE) end = text.length
-
-    // Adjust boundaries to capture the full word and ignore surrounding whitespace
-    while (start < end && Character.isWhitespace(text[start])) {
-        start++
-    }
-    while (end > start && Character.isWhitespace(text[end - 1])) {
-        end--
-    }
-
-    return IntRange(start, end)
-}
-private fun calculatePageBreaks(
-    storyText: String,
-    start: Int,
-    textLayoutResult: TextLayoutResult
-): Int {
-    // Find the last visible line on the first layout pass
-    val lastVisibleLineIndex = textLayoutResult.lineCount - 1
-
-    // Find the end character index of that last visible line
-    val lastVisibleCharIndex =
-        textLayoutResult.getLineEnd(lastVisibleLineIndex, visibleEnd = true)
-
-    //
-    //val validStart = textLayoutResult.getLineStart(lastVisibleLineIndex)
-    var validEnd = start + lastVisibleCharIndex
-    var removedChars = ""
-    if (validEnd < storyText.length) {
-        var found = false
-        while (!found) {
-            if (!storyText.get(validEnd).isWhitespace()) {
-                removedChars = storyText[validEnd].toString() + removedChars
-                validEnd--
-            } else {
-                found = true
-            }
-        }
-        Log.d("FANSIPAN", "START: " + start + " | " + "REMOVED: " + removedChars)
-        return lastVisibleCharIndex - removedChars.length + 1
-    } else {
-        Log.d(
-            "FANSIPAN",
-            "START: " + start + " | " + "REMAINDER: " + (storyText.length - start).toString()
-        )
-        return storyText.length - start
-    }
-    //Log.d("FANSIPAN", "ORIGINAL: "  + storyText.substring(validStart, validEnd) )
-}
 
 @Composable
 fun OverlayMessageDialog(
@@ -113,10 +53,13 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val updateStartTime = fun (l: Long){
         startTime = l
     }
-    val onWordTapped = fun (word: String){
+    val onWordTapped = fun (word: String, storyText: String, end: Int){
         // Handle the tapped word here (e.g., show a Toast, look up definition)
         Log.d("FANSIPAN", "Tapped on word: $word")
-        // You can add your custom selection logic here
+        val numberOfWords = getNumberOfWords(storyText, storyText.length)
+        Log.d("FANSIPAN", "Total number of words: $numberOfWords")
+        val numberOfWordsRead = getNumberOfWords(storyText, end)
+        Log.d("FANSIPAN", "Number of words read: $numberOfWordsRead")// You can add your custom selection logic here
     }
     //
     var highlightedWord by remember {mutableStateOf<Rect?>(null)}
@@ -135,15 +78,9 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                         val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
                         val endBounds = textLayoutResult.getBoundingBox(wordRange.last)
                         highlightedWord = Rect(startBounds.left, startBounds.top, endBounds.right, endBounds.bottom)
-                        //drawRect(color = Color.Yellow.copy(alpha = 0.3f), topLeft = rect.topLeft, size = rect.size)
-                        // Draw a rectangle over the calculated bounds
-                        //drawRect(
-                        //    color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
-                        //    topLeft = rect.topLeft,
-                        //    size = rect.size
-                        //)
+
                         Log.d("FANSIPAN", highlightedWord.toString())
-                        onWordTapped(tappedWord)
+                        onWordTapped(tappedWord, storyText, wordRange.first)
                     }
                 }
             }
