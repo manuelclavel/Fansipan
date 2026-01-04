@@ -44,7 +44,7 @@ fun TimerCompose(
         //horizontalAlignment = Alignment.CenterHorizontally,
         //verticalArrangement = Arrangement.Center
     ) {
-        if (readTimeLeft() > 0) {
+        if (readTimeLeft() >= 0) {
             updateMessage("Time Left: " + readTimeLeft() + " seconds")
         }
         Row(
@@ -56,7 +56,7 @@ fun TimerCompose(
                 updateStartTime(currentTimestamp)
                 updateRunning(true)
                              }, enabled = !readRunning()
-                    && readTimeLeft() > 0) {
+                    && readTimeLeft() >= 0) {
                 Text("Start")
             }
             //Button(onClick = { isRunning = false }, enabled = isRunning) {
