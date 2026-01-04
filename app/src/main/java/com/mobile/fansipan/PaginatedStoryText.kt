@@ -169,6 +169,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val resetTimer = fun() {
         timeLeft = initialTimeSeconds
         pageReading = 0
+        highlightedWord = null
         metrics.clear()
 
     }
