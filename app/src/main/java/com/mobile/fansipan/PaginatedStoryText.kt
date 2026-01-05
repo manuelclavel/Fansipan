@@ -70,7 +70,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val ends = remember { mutableStateListOf(0) }
 
     // Disable swipe
-    var userSwipeEnabled by remember { mutableStateOf(true) }
+    var userSwipeEnabled by remember { mutableStateOf(false) }
     // State to hold the number of pages needed, defaulting to 1
     var pageCount by remember { mutableIntStateOf(1) }
     // State to hold the start indices of each page
@@ -96,15 +96,16 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     }
     val onWordTapped = fun (word: String, storyText: String, range: IntRange){
         val currentPage = pagerState.currentPage
-        val numberOfWords = 0 // getNumberOfWords(storyText, storyText.length)
-        //val currentPageStarts = if (pagerState.currentPage > 0) pages[pagerState.currentPage] else 0
-        val numberOfWordsRead = 0 //getNumberOfWords(storyText, pages[currentPage] + range.first)
+        val numberOfWords = getNumberOfWords(storyText, storyText.length)
+        //val currentPageStarts = pages[pagerState.currentPage]
+        val numberOfWordsRead =getNumberOfWords(storyText, pages[pagerState.currentPage] + range.first)
         overlayMessage.value =
             "Tapped on word: $word\n" +
-                    "Total number of words: $numberOfWords\n" +
+                   // "Total number of words: $numberOfWords\n" +
                     "Number of words read: $numberOfWordsRead\n" +
                     "CurrentPage: $currentPage"
         showOverlay.value = true
+
         }
 
     //
@@ -112,25 +113,37 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
     val pressIndicator = Modifier.pointerInput(Unit) {
         detectTapGestures(
-            onLongPress = { offset ->
+            onTap = {
+                offset ->
                 if (timeLeft <= 1){
                 textLayoutResultState.value?.let { textLayoutResult ->
-                    val currentPage = pagerState.currentPage
+                    //val currentPage = pagerState.currentPage
+                    var end = ends[pagerState.currentPage]
+                    if (ends.size == (pagerState.currentPage + 1)){
+                        end = storyText.length
+                    }
                     val position = textLayoutResult.getOffsetForPosition(offset)
+                    Log.d("FANSIPAN", "OFFSET: " + offset.toString())
+                    Log.d("FANSIPAN", "STARTS: " + pages.toString())
+                    Log.d("FANSIPAN", "ENDS: " + ends.toString())
                     Log.d("FANSIPAN", "POSITION: $position")
-                    Log.d("FANSIPAN", "PAGE STARTS " + pages[currentPage])
-                    Log.d("FANSIPAN", "PAGE ENDS " + ends[currentPage])
+                    Log.d("FANSIPAN", "PAGE STARTS " +  pagerState.currentPage)
+                    Log.d("FANSIPAN", "PAGE ENDS " + end)
                     //val wordRange =
                     //    getWordRange(storyText.substring(pages[currentPage]),
                     //        position)
                     val wordRange =
-                     getWordRange(storyText,
-                         position + pages[currentPage])
+                     getWordRange(storyText.substring(pages[pagerState.currentPage], end),
+                         position)
+                    highlightedWordRange = wordRange
                     val tappedWord = storyText
-                        .substring(wordRange.first, wordRange.last)
+                        .substring(wordRange.first +  pages[pagerState.currentPage],
+                            wordRange.last + pages[pagerState.currentPage])
                     if (tappedWord.isNotBlank()) {
                         onWordTapped(tappedWord, storyText, wordRange)
                     }
+                    highlightedWordRange = wordRange
+
                 }
                 }
             }
@@ -265,6 +278,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
 
     }
 
+    /*
     LaunchedEffect(pagerState) {
         // Collect from the a snapshotFlow reading the currentPage
         snapshotFlow { pagerState.currentPage }.collect { page ->
@@ -293,7 +307,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
             }
         }
     }
-
+   */
     Column(
         modifier = Modifier.padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -329,24 +343,27 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                     text = original,
                     overflow = TextOverflow.Ellipsis,
                     modifier =
-                        Modifier.align(Alignment.TopStart)
-                        .then(pressIndicator)
-                           .drawWithContent {
-                                drawContent()
-                                //
-                        //        if (highlightedWordRange.last > 0) {
-                        //            Log.d("FANSIPAN", highlightedWordRange.toString())
-                        //            val rect =
-                        //                drawRectangle(textLayoutResultState.value, highlightedWordRange)
+                        Modifier.align(Alignment.TopStart).
+                            drawWithContent {
+                               drawContent()
+                               //
+                               if (highlightedWordRange.last > 0) {
+                                   Log.d("FANSIPAN", highlightedWordRange.toString())
+                                   val rect =
+                                       drawRectangle(
+                                           textLayoutResultState.value,
+                                           highlightedWordRange
+                                       )
 
-//
-//                                    drawRect(
-//                                        color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
-//                                        topLeft = rect.topLeft,
-//                                        size = rect.size
-//                                    )
-//                              }
-                           },
+                                   drawRect(
+                                       color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
+                                       topLeft = rect.topLeft,
+                                       size = rect.size
+                                   )
+                               }
+                           }.then(
+                            pressIndicator
+                        ),
 
                     onTextLayout = {
                         textLayoutResult ->
@@ -365,7 +382,16 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                         //so their onTextLayout callback (which fires during the layout phase) is not re-invoked automatically.
 
                         val endPageChar = calculatePageBreaks(storyText, start, textLayoutResult)
+                        //var realStart = false
+                        //while(!realStart){
+                        //    if (storyText.get(endPageChar + 1).isWhitespace()){
+                        //        endPageChar++
+                        //    } else {
+                        //        realStart = true
+                        //    }
+                        //}
                         if (!pages.contains(start + endPageChar)) {
+
                             if ((start + endPageChar) < storyText.length) {
                                 if (ends[pageIndex] == 0) {
                                     ends[pageIndex] = (start + endPageChar)

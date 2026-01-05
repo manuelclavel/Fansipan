@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
+import android.util.Log
 
 @Composable
 fun TimerCompose(
@@ -34,6 +35,7 @@ fun TimerCompose(
                 updateTimeLeft()
             }
             //updateRunning(false) // Stop the timer when it reaches 0
+            Log.d("FANSIPAN", "NOW READY TO PIN DOWN")
             whenFinished()
         }
     }

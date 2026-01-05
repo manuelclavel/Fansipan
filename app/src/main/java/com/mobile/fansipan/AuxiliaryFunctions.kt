@@ -54,7 +54,7 @@ fun getWordRange(text: String, offset: Int): IntRange {
         start--
     }
     var end = offset
-    while (end < text.length && !Character.isWhitespace(text[end])) {
+    while (end < (text.length - 1) && !Character.isWhitespace(text[end])) {
       end++
     }
     Log.d("FANSIPAN", "RANGE: " + IntRange(start, end).toString())
