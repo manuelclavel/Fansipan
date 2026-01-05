@@ -13,7 +13,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
@@ -23,6 +25,21 @@ import kotlinx.coroutines.launch
 
 // Helper function to find word boundaries using BreakIterator
 
+fun drawRectangle(textLayoutResult: TextLayoutResult?, wordRange: IntRange): Rect {
+    // Draw a rectangle over the calculated bounds
+    var rect = Rect(Offset(0F, 0F), Size(0F,0F))
+    if (textLayoutResult != null) {
+        val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
+        val endBounds = textLayoutResult.getBoundingBox(wordRange.last - 1)
+        rect = Rect(
+            startBounds.left,
+            startBounds.top,
+            endBounds.right,
+            endBounds.bottom
+        )
+    }
+    return rect
+}
 @Composable
 fun OverlayMessageDialog(
     showDialog: MutableState<Boolean>,
@@ -46,8 +63,8 @@ fun OverlayMessageDialog(
 @Composable
 fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                        ) {
-
     val scope = rememberCoroutineScope()
+
     //var maxChar by remember { mutableIntStateOf }
     val pages = remember { mutableStateListOf(0) }
     val ends = remember { mutableStateListOf(0) }
@@ -59,8 +76,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     // State to hold the start indices of each page
 
 
+    // pagerState keeps the pages. Crucially, it keeps the "current" (visible) page
     val pagerState = rememberPagerState(pageCount = { pageCount })
-
 
 
     // overlay
@@ -78,51 +95,48 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
         startTime = l
     }
     val onWordTapped = fun (word: String, storyText: String, end: Int){
+        val currentPage = pagerState.currentPage
         val numberOfWords = getNumberOfWords(storyText, storyText.length)
-        val currentPageStarts = if (pagerState.currentPage > 0) ends[pagerState.currentPage] else 0
-
-        val numberOfWordsRead = getNumberOfWords(storyText, currentPageStarts)
-        //Log.d("FANSIPAN", "Chars read already: $numberOfWordsRead")
+        //val currentPageStarts = if (pagerState.currentPage > 0) pages[pagerState.currentPage] else 0
+        val numberOfWordsRead = getNumberOfWords(storyText, pages[currentPage] + end)
         overlayMessage.value =
-            "Tapped on word: $word\nTotal number of words: $numberOfWords\nNumber of words read: $numberOfWordsRead"
+            "Tapped on word: $word\n" +
+                    "Total number of words: $numberOfWords\n" +
+                    "Number of words read: $numberOfWordsRead\n" +
+                    "CurrentPage: $currentPage"
         showOverlay.value = true
         }
 
     //
-    var highlightedWord by remember {mutableStateOf<Rect?>(null)}
+    var highlightedWordRange by remember {mutableStateOf<IntRange>(IntRange(0, 0))}
     val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
     val pressIndicator = Modifier.pointerInput(onWordTapped) {
         detectTapGestures(
             onTap = { offset ->
                 if (timeLeft <= 1){
                 textLayoutResultState.value?.let { textLayoutResult ->
-                    val currentPageStarts = if (pagerState.currentPage > 0) pages[pagerState.currentPage] else 0
-                    val position = currentPageStarts + textLayoutResult.getOffsetForPosition(offset)
+                    val currentPage = pagerState.currentPage
+                    val position = textLayoutResult.getOffsetForPosition(offset)
+                    val wordRange =
+                        getWordRange(storyText.substring(pages[currentPage]),
+                            position)
 
-                    val wordRange = getWordRange(storyText, position)
-                    Log.d("FANSIPAN", "WORD RANGE: " + wordRange.toString())
-                    val tappedWord = storyText.substring(wordRange.first,
-                        wordRange.last)
-                    Log.d(
-                        "FANSIPAN", "TAP DETECTED: " + wordRange.first
-                                + "--" + wordRange.last
-                    )
-                    Log.d(
-                        "FANSIPAN", "PAGESTARTS: " + currentPageStarts
-                    )
+                    //Log.d("FANSIPAN", "WORD RANGE: " + wordRange.toString())
+                    val tappedWord = storyText.substring(wordRange.first + pages[currentPage],
+                        wordRange.last + pages[currentPage])
+
                     if (tappedWord.isNotBlank()) {
-
-                        val startBounds = textLayoutResult.getBoundingBox(wordRange.first - currentPageStarts)
-                        val endBounds = textLayoutResult.getBoundingBox(wordRange.last - currentPageStarts - 1)
-                        highlightedWord = Rect(
-                            startBounds.left,
-                            startBounds.top,
-                            endBounds.right,
-                            endBounds.bottom
-                        )
-
-                        Log.d("FANSIPAN", highlightedWord.toString())
-                        onWordTapped(tappedWord, storyText, currentPageStarts + wordRange.first + 1)
+                        //val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
+                        //val endBounds = textLayoutResult.getBoundingBox(wordRange.last)
+                        //highlightedWord = Rect(
+                        //    startBounds.left,
+                        //    startBounds.top,
+                        //    endBounds.right,
+                        //    endBounds.bottom
+                        //)
+                        //Log.d("FANSIPAN", highlightedWord.toString())
+                        highlightedWordRange = wordRange
+                        onWordTapped(tappedWord, storyText, wordRange.first)
                     }
                 }
                 }
@@ -182,7 +196,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val resetTimer = fun() {
         timeLeft = initialTimeSeconds
         pageReading = 0
-        highlightedWord = null
+        highlightedWordRange = IntRange(0, 0)
         metrics.clear()
 
     }
@@ -343,12 +357,16 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                             .drawWithContent {
                                 drawContent()
                                 //
-                                // Draw a rectangle over the calculated bounds
-                                highlightedWord?.let {
+                                if (highlightedWordRange.last > 0) {
+                                    Log.d("FANSIPAN", highlightedWordRange.toString())
+                                    val rect =
+                                        drawRectangle(textLayoutResultState.value, highlightedWordRange)
+
+
                                     drawRect(
                                         color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
-                                        topLeft = it.topLeft,
-                                        size = it.size
+                                        topLeft = rect.topLeft,
+                                        size = rect.size
                                     )
                                 }
                             },
@@ -378,8 +396,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                                 pages.add(start + endPageChar)
                                 ends.add(0)
                                 pageCount = pages.size
-                                Log.d("FANSIPAN", "START: " + pages.toString())
-                                Log.d("FANSIPAN", "END: " + ends.toString())
+                                //Log.d("FANSIPAN", "START: " + pages.toString())
+                                //Log.d("FANSIPAN", "END: " + ends.toString())
                             }
                         }
 
