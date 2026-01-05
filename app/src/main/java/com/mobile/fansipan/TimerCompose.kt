@@ -33,7 +33,7 @@ fun TimerCompose(
                 delay(1000L) // Delay for 1 second
                 updateTimeLeft()
             }
-            updateRunning(false) // Stop the timer when it reaches 0
+            //updateRunning(false) // Stop the timer when it reaches 0
             whenFinished()
         }
     }

@@ -38,22 +38,26 @@ fun getNumberOfWords(text: String, end: Int): Int {
     return numberOfWords
 }
 fun getWordRange(text: String, offset: Int): IntRange {
-    val breakIterator = BreakIterator.getWordInstance(Locale.getDefault())
-    breakIterator.setText(text)
+    Log.d("FANSIPAN",  "CHARACTER: " + text.substring(offset, offset + 1))
+
+    //val breakIterator = BreakIterator.getWordInstance(Locale.US)
+    //breakIterator.setText(text)
     // Find the word boundary that contains the tapped offset
-    var start = breakIterator.preceding(offset)
-    if (start == BreakIterator.DONE) start = 0
-    var end = breakIterator.following(offset)
-    if (end == BreakIterator.DONE) end = text.length
+    //var start = breakIterator.preceding(offset)
+    var start = offset
+    //if (start == BreakIterator.DONE) start = 0
+    //var end = breakIterator.following(offset)
+    //if (end == BreakIterator.DONE) end = text.length
 
     // Adjust boundaries to capture the full word and ignore surrounding whitespace
-    while (start < end && Character.isWhitespace(text[start])) {
-        start++
+    while (start > 0 && !Character.isWhitespace(text[start])) {
+        start--
     }
-    while (end > start && Character.isWhitespace(text[end - 1])) {
-        end--
+    var end = offset
+    while (end < text.length && !Character.isWhitespace(text[end])) {
+      end++
     }
-
+    Log.d("FANSIPAN", "RANGE: " + IntRange(start, end).toString())
     return IntRange(start, end)
 }
 fun calculatePageBreaks(

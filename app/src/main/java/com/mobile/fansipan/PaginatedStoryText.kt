@@ -70,7 +70,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val ends = remember { mutableStateListOf(0) }
 
     // Disable swipe
-    var userSwipeEnabled by remember { mutableStateOf(false) }
+    var userSwipeEnabled by remember { mutableStateOf(true) }
     // State to hold the number of pages needed, defaulting to 1
     var pageCount by remember { mutableIntStateOf(1) }
     // State to hold the start indices of each page
@@ -84,7 +84,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val showOverlay = remember { mutableStateOf(false) }
     val overlayMessage = remember { mutableStateOf("") }
     // timer
-    var isRunning by remember { mutableStateOf(false) }
+    var isRunning by remember { mutableStateOf(true) }
     var timeLeft by remember { mutableIntStateOf(initialTimeSeconds) }
     var pageReading by remember { mutableIntStateOf(0) }
     var timeInPage by remember { mutableIntStateOf(0) }
@@ -94,11 +94,11 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     val updateStartTime = fun (l: Long){
         startTime = l
     }
-    val onWordTapped = fun (word: String, storyText: String, end: Int){
+    val onWordTapped = fun (word: String, storyText: String, range: IntRange){
         val currentPage = pagerState.currentPage
-        val numberOfWords = getNumberOfWords(storyText, storyText.length)
+        val numberOfWords = 0 // getNumberOfWords(storyText, storyText.length)
         //val currentPageStarts = if (pagerState.currentPage > 0) pages[pagerState.currentPage] else 0
-        val numberOfWordsRead = getNumberOfWords(storyText, pages[currentPage] + end)
+        val numberOfWordsRead = 0 //getNumberOfWords(storyText, pages[currentPage] + range.first)
         overlayMessage.value =
             "Tapped on word: $word\n" +
                     "Total number of words: $numberOfWords\n" +
@@ -110,33 +110,26 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     //
     var highlightedWordRange by remember {mutableStateOf<IntRange>(IntRange(0, 0))}
     val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
-    val pressIndicator = Modifier.pointerInput(onWordTapped) {
+    val pressIndicator = Modifier.pointerInput(Unit) {
         detectTapGestures(
-            onTap = { offset ->
+            onLongPress = { offset ->
                 if (timeLeft <= 1){
                 textLayoutResultState.value?.let { textLayoutResult ->
                     val currentPage = pagerState.currentPage
                     val position = textLayoutResult.getOffsetForPosition(offset)
+                    Log.d("FANSIPAN", "POSITION: $position")
+                    Log.d("FANSIPAN", "PAGE STARTS " + pages[currentPage])
+                    Log.d("FANSIPAN", "PAGE ENDS " + ends[currentPage])
+                    //val wordRange =
+                    //    getWordRange(storyText.substring(pages[currentPage]),
+                    //        position)
                     val wordRange =
-                        getWordRange(storyText.substring(pages[currentPage]),
-                            position)
-
-                    //Log.d("FANSIPAN", "WORD RANGE: " + wordRange.toString())
-                    val tappedWord = storyText.substring(wordRange.first + pages[currentPage],
-                        wordRange.last + pages[currentPage])
-
+                     getWordRange(storyText,
+                         position + pages[currentPage])
+                    val tappedWord = storyText
+                        .substring(wordRange.first, wordRange.last)
                     if (tappedWord.isNotBlank()) {
-                        //val startBounds = textLayoutResult.getBoundingBox(wordRange.first)
-                        //val endBounds = textLayoutResult.getBoundingBox(wordRange.last)
-                        //highlightedWord = Rect(
-                        //    startBounds.left,
-                        //    startBounds.top,
-                        //    endBounds.right,
-                        //    endBounds.bottom
-                        //)
-                        //Log.d("FANSIPAN", highlightedWord.toString())
-                        highlightedWordRange = wordRange
-                        onWordTapped(tappedWord, storyText, wordRange.first)
+                        onWordTapped(tappedWord, storyText, wordRange)
                     }
                 }
                 }
@@ -313,22 +306,6 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
             onDismiss = { showOverlay.value = false }
         )
 
-        Text(text = message)
-
-        TimerCompose(
-            updateMessage = updateMessage,
-            userScrollEnabled = changeUserScrollEnabled,
-            resetPagerState = resetPagerState,
-            updateTimeLeft = updateTimeLeft,
-            resetTimer = resetTimer,
-            readTimeLeft = readTimeLeft,
-            updateRunning = updateRunning,
-            readRunning = readRunning,
-            whenFinished = whenFinished,
-            updateStartTime = updateStartTime
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         HorizontalPager(
             state = pagerState,
@@ -354,22 +331,22 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                     modifier =
                         Modifier.align(Alignment.TopStart)
                         .then(pressIndicator)
-                            .drawWithContent {
+                           .drawWithContent {
                                 drawContent()
                                 //
-                                if (highlightedWordRange.last > 0) {
-                                    Log.d("FANSIPAN", highlightedWordRange.toString())
-                                    val rect =
-                                        drawRectangle(textLayoutResultState.value, highlightedWordRange)
+                        //        if (highlightedWordRange.last > 0) {
+                        //            Log.d("FANSIPAN", highlightedWordRange.toString())
+                        //            val rect =
+                        //                drawRectangle(textLayoutResultState.value, highlightedWordRange)
 
-
-                                    drawRect(
-                                        color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
-                                        topLeft = rect.topLeft,
-                                        size = rect.size
-                                    )
-                                }
-                            },
+//
+//                                    drawRect(
+//                                        color = Color.Yellow.copy(alpha = 0.5f), // Semi-transparent for visibility
+//                                        topLeft = rect.topLeft,
+//                                        size = rect.size
+//                                    )
+//                              }
+                           },
 
                     onTextLayout = {
                         textLayoutResult ->
@@ -405,5 +382,25 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                 )
             }
         }
+       // Text(text = message)
+
+
+        TimerCompose(
+            updateMessage = updateMessage,
+            userScrollEnabled = changeUserScrollEnabled,
+            resetPagerState = resetPagerState,
+            updateTimeLeft = updateTimeLeft,
+            resetTimer = resetTimer,
+            readTimeLeft = readTimeLeft,
+            updateRunning = updateRunning,
+            readRunning = readRunning,
+            whenFinished = whenFinished,
+            updateStartTime = updateStartTime
+        )
+
+
+
+//        Spacer(modifier = Modifier.height(16.dp))
+
     }
 }
