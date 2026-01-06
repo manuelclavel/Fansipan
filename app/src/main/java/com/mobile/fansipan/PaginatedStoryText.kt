@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 
 // Helper function to find word boundaries using BreakIterator
 
+
 fun drawRectangle(textLayoutResult: TextLayoutResult?, wordRange: IntRange): Rect {
     // Draw a rectangle over the calculated bounds
     var rect = Rect(Offset(0F, 0F), Size(0F,0F))
@@ -63,11 +64,14 @@ fun OverlayMessageDialog(
 @Composable
 fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                        ) {
+
+
     val scope = rememberCoroutineScope()
 
     //var maxChar by remember { mutableIntStateOf }
     val pages = remember { mutableStateListOf(0) }
     val ends = remember { mutableStateListOf(0) }
+    val layouts = remember { mutableStateListOf<TextLayoutResult>()}
 
     // Disable swipe
     var userSwipeEnabled by remember { mutableStateOf(false) }
@@ -111,6 +115,53 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
     //
     var highlightedWordRange by remember {mutableStateOf<IntRange>(IntRange(0, 0))}
     val textLayoutResultState = remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    val pressIndicator = fun (page: Int): Modifier {
+        val modifier = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = {
+                        offset ->
+                    if (timeLeft <= 1){
+                            Log.d("FANSIPAN", "STARTS: " + pages.toString())
+                            Log.d("FANSIPAN", "ENDS: " + ends.toString())
+                            Log.d("FANSIPAN", "PAGE: " + page)
+                            Log.d("FANSIPAN", "LAYOUTS: " + layouts.size)
+
+                            val textLayoutResult  = layouts[page]
+                            //val currentPage = pagerState.currentPage
+                            var end = ends[pagerState.currentPage]
+                            if (ends.size == (pagerState.currentPage + 1)){
+                                end = storyText.length
+                            }
+                            val position = textLayoutResult.getOffsetForPosition(offset)
+                            Log.d("FANSIPAN", "OFFSET: " + offset.toString())
+                            Log.d("FANSIPAN", "POSITION: $position")
+                            Log.d("FANSIPAN", "PAGE STARTS " +  pagerState.currentPage)
+                            Log.d("FANSIPAN", "PAGE ENDS " + end)
+                            //val wordRange =
+                            //    getWordRange(storyText.substring(pages[currentPage]),
+                            //        position)
+                            val wordRange =
+                                getWordRange(storyText.substring(pages[pagerState.currentPage], end),
+                                    position)
+                            highlightedWordRange = wordRange
+                            val tappedWord = storyText
+                                .substring(wordRange.first +  pages[pagerState.currentPage],
+                                    wordRange.last + pages[pagerState.currentPage])
+                            if (tappedWord.isNotBlank()) {
+                                onWordTapped(tappedWord, storyText, wordRange)
+                                highlightedWordRange = wordRange
+                            }
+
+
+
+                    }
+                }
+            )
+        }
+        return modifier
+    }
+    /*
     val pressIndicator = Modifier.pointerInput(Unit) {
         detectTapGestures(
             onTap = {
@@ -149,7 +200,7 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
             }
         )
     }
-
+*/
 
     // metrics
     val metrics = remember { mutableListOf<TimeInPage>() }
@@ -326,6 +377,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
             userScrollEnabled = userSwipeEnabled, // This disables user swiping
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
+            // start each page
+            highlightedWordRange = IntRange(0,0)
             // A Box to constrain the Text size for measurement
             Box(
                 modifier = Modifier
@@ -351,7 +404,8 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                                    Log.d("FANSIPAN", highlightedWordRange.toString())
                                    val rect =
                                        drawRectangle(
-                                           textLayoutResultState.value,
+                                           //textLayoutResultState.value,
+                                           layouts[pageIndex],
                                            highlightedWordRange
                                        )
 
@@ -362,14 +416,13 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                                    )
                                }
                            }.then(
-                            pressIndicator
+                            //pressIndicator
+                               pressIndicator(pageIndex)
                         ),
 
                     onTextLayout = {
                         textLayoutResult ->
-                        // detect tapping
 
-                        textLayoutResultState.value = textLayoutResult
                         // This callback runs when the text is laid out.
                         //The onTextLayout callback in HorizontalPager
                         //is only triggered when a page is initially
@@ -382,19 +435,16 @@ fun PaginatedStoryText(storyText: String, initialTimeSeconds: Int,
                         //so their onTextLayout callback (which fires during the layout phase) is not re-invoked automatically.
 
                         val endPageChar = calculatePageBreaks(storyText, start, textLayoutResult)
-                        //var realStart = false
-                        //while(!realStart){
-                        //    if (storyText.get(endPageChar + 1).isWhitespace()){
-                        //        endPageChar++
-                        //    } else {
-                        //        realStart = true
-                        //    }
-                        //}
+                        if (pageIndex == layouts.size){
+                            layouts.add(textLayoutResult)
+                        } else {
+                            layouts[pageIndex] = textLayoutResult
+                        }
                         if (!pages.contains(start + endPageChar)) {
-
                             if ((start + endPageChar) < storyText.length) {
                                 if (ends[pageIndex] == 0) {
                                     ends[pageIndex] = (start + endPageChar)
+
                                 }
                                 pages.add(start + endPageChar)
                                 ends.add(0)
