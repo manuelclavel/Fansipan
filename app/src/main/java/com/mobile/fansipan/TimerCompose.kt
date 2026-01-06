@@ -34,8 +34,8 @@ fun TimerCompose(
                 delay(1000L) // Delay for 1 second
                 updateTimeLeft()
             }
-            //updateRunning(false) // Stop the timer when it reaches 0
-            Log.d("FANSIPAN", "NOW READY TO PIN DOWN")
+            updateRunning(false) // Stop the timer when it reaches 0
+            //Log.d("FANSIPAN", "NOW READY TO PIN DOWN")
             whenFinished()
         }
     }
